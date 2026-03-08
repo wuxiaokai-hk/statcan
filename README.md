@@ -1,30 +1,31 @@
-## Autonomous Macro-Forecasting Agent for StatCan CRSPI
+# Continuous Monitoring & Prediction System for Canadian Commercial Real Estate
 
-This repository maintains an automated data and forecasting pipeline for
-Statistics Canada Table 18-10-0255-01 (Commercial Rent Services Price Index).
+## System Health
 
-The GitHub Actions workflow fetches the latest data, runs an AI forecasting
-model (Chronos-T5 Tiny), and publishes updated forecasts and a dashboard image.
+| Metric | Value |
+| --- | --- |
+| **Last Ingestion Date** | — |
+| **Last Forecast Date** | — |
+| **Model Accuracy (3-month MAPE)** | — |
+| **Data Source** | StatCan Table 18-10-0255-01 (Commercial Rent Services Price Index) |
 
+*(This table is updated automatically: **monthly** ingestion dates; **quarterly** forecast dates and MAPE in Jan, Apr, Jul, Oct.)*
 
-<!-- FORECAST_SUMMARY_START -->
-## Latest CRSPI Macro Forecast
+---
 
-- **Last Observation**: 2025-12 = 114.40
-- **MoM Change**: 0.26%
-- **Trend Tag**: Neutral
+## Repository structure
 
-### 6-Month AI Forecast (Chronos-T5 Tiny)
+| Path | Purpose |
+| --- | --- |
+| **data/** | Raw and processed CSVs (`crspi_history.csv`, wide table, zip). |
+| **models/** | Inference metadata and last-forecast state (Chronos-T5). |
+| **analytics/** | Dashboard image and performance metrics (MAPE/backtesting). |
 
-| Month | Mean | P10 | P90 |
-| --- | --- | --- | --- |
-| 2026-01 | 114.46 | 114.46 | 115.15 |
-| 2026-02 | 114.46 | 114.46 | 115.15 |
-| 2026-03 | 114.46 | 114.46 | 115.15 |
-| 2026-04 | 115.15 | 114.46 | 115.85 |
-| 2026-05 | 115.15 | 114.46 | 115.85 |
-| 2026-06 | 115.15 | 115.15 | 115.85 |
+## Branch policy
 
-![CRSPI Forecast Dashboard](dashboard.png)
+- **main** — Stable production. The production pipeline runs from this branch (monthly ingestion; quarterly AI forecast).
+- **ai-forecast** — Experimental model tuning and feature development.
 
-<!-- FORECAST_SUMMARY_END -->
+---
+
+*Updated automatically by GitHub Actions. See `.github/workflows/production_pipeline.yml` for the dual-cadence schedule.*
