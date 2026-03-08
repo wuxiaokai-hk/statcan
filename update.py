@@ -31,13 +31,10 @@ WIDE_CSV_PATH = DATA_DIR / f"{TABLE_ID}_wide.csv"
 
 FORECAST_HORIZON_MONTHS = 6
 NUM_FORECAST_SAMPLES = 64
+BACKTEST_MONTHS = 3  # MAPE over last N months
 
 # Column used for macro forecasting (Canada-wide total index)
 TARGET_SERIES_COLUMN = "Canada | Total, building type"
-
-# Markers for auto-updated section in README
-README_FORECAST_START = "<!-- FORECAST_SUMMARY_START -->"
-README_FORECAST_END = "<!-- FORECAST_SUMMARY_END -->"
 
 
 def configure_logging() -> None:
@@ -171,19 +168,25 @@ def load_macro_series(wide_csv: Path) -> pd.Series:
     return series
 
 
-def run_chronos_forecast(series: pd.Series) -> pd.DataFrame:
-    """
-    Run zero-shot forecasting with Chronos-T5 Tiny and return
-    a DataFrame with columns ['mean', 'p10', 'p90'] indexed by future timestamps.
-    """
+def load_chronos_pipeline():
+    """Load Chronos-T5 Tiny once for reuse in forecast and backtest."""
     logging.info(
         "Loading Chronos-T5 Tiny model for zero-shot forecasting (CPU, no gradients)."
     )
-    pipeline = ChronosPipeline.from_pretrained(
+    return ChronosPipeline.from_pretrained(
         "amazon/chronos-t5-tiny",
         device_map="cpu",
         torch_dtype=torch.float32,
     )
+
+
+def run_chronos_forecast(series: pd.Series, pipeline=None) -> pd.DataFrame:
+    """
+    Run zero-shot forecasting with Chronos-T5 Tiny and return
+    a DataFrame with columns ['mean', 'p10', 'p90'] indexed by future timestamps.
+    """
+    if pipeline is None:
+        pipeline = load_chronos_pipeline()
 
     context = torch.tensor(series.values.astype(np.float32))
 
@@ -218,6 +221,42 @@ def run_chronos_forecast(series: pd.Series) -> pd.DataFrame:
     return forecast_df
 
 
+def backtest_mape(series: pd.Series, pipeline, num_months: int = BACKTEST_MONTHS) -> float:
+    """
+    Compare model forecast vs actual for the last `num_months`.
+    Returns MAPE (Mean Absolute Percentage Error) in percentage points.
+    """
+    if len(series) < num_months + 24:
+        logging.warning(
+            "Insufficient history for %d-month backtest; returning NaN.", num_months
+        )
+        return float("nan")
+
+    context = torch.tensor(
+        series.iloc[:-num_months].values.astype(np.float32)
+    )
+
+    with torch.no_grad():
+        forecast = pipeline.predict(
+            context,
+            num_months,
+            num_samples=NUM_FORECAST_SAMPLES,
+        )
+
+    # [1, num_samples, num_months] -> median over samples
+    median_forecast = np.median(forecast[0].cpu().numpy(), axis=0)
+    actuals = series.iloc[-num_months:].values.astype(np.float64)
+    # MAPE = mean(|forecast - actual| / |actual|) * 100, avoid div by zero
+    mape = np.mean(
+        np.abs(median_forecast - actuals) / (np.abs(actuals) + 1e-10)
+    ) * 100.0
+
+    logging.info(
+        "Backtest MAPE (last %d months): %.2f%%", num_months, mape
+    )
+    return float(mape)
+
+
 def analyze_trend(series: pd.Series) -> Tuple[float, str]:
     """
     Compute month-over-month growth and map to a qualitative tag.
@@ -249,13 +288,14 @@ def build_dashboard(
     history: pd.Series,
     forecast_df: pd.DataFrame,
     out_path: Path,
+    mape_pct: float | None = None,
 ) -> None:
     logging.info("Building dashboard chart at %s", out_path)
 
     history = history.sort_index()
     history_tail = history.tail(120)
 
-    fig, ax = plt.subplots(figsize=(10, 5), dpi=150)
+    fig, ax = plt.subplots(figsize=(10, 5.5), dpi=150)
 
     ax.plot(
         history_tail.index,
@@ -281,16 +321,31 @@ def build_dashboard(
         label="80% prediction interval",
     )
 
-    ax.set_title(
+    title = (
         "Commercial Rent Services Price Index (Canada Total)\n"
         "Historical vs Chronos-T5 Tiny Zero-shot Forecast"
     )
+    ax.set_title(title)
     ax.set_xlabel("Date")
     ax.set_ylabel("Index level (2019=100)")
     ax.grid(True, linestyle=":", linewidth=0.5)
-    ax.legend()
-    fig.autofmt_xdate()
+    ax.legend(loc="upper left")
 
+    # Model reliability: MAPE for last 3 months
+    if mape_pct is not None and not np.isnan(mape_pct):
+        reliability_text = f"Model reliability (3-month MAPE): {mape_pct:.2f}%"
+        ax.text(
+            0.99,
+            0.02,
+            reliability_text,
+            transform=ax.transAxes,
+            fontsize=9,
+            verticalalignment="bottom",
+            horizontalalignment="right",
+            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.8),
+        )
+
+    fig.autofmt_xdate()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
     fig.savefig(out_path, bbox_inches="tight")
@@ -299,62 +354,106 @@ def build_dashboard(
     logging.info("Dashboard chart written to %s", out_path)
 
 
-def ensure_readme(path: Path) -> None:
-    if path.exists():
-        return
+def generate_market_intelligence_summary(
+    last_obs_value: float,
+    mom_growth: float,
+    forecast_df: pd.DataFrame,
+    trend_tag: str,
+) -> str:
+    """
+    Generate a 3-sentence Market Intelligence summary:
+    1) Current CRSPI value and MoM change
+    2) 6-month projected trend
+    3) Risk assessment
+    """
+    mom_pct = mom_growth * 100.0
+    first_fc = float(forecast_df["mean"].iloc[0])
+    last_fc = float(forecast_df["mean"].iloc[-1])
+    six_month_change_pct = (last_fc / first_fc - 1.0) * 100.0 if first_fc else 0.0
 
-    logging.info("Creating README.md at %s", path)
-    initial_content = """## Autonomous Macro-Forecasting Agent for StatCan CRSPI
+    sentence1 = (
+        f"The Commercial Rent Services Price Index (Canada, total building type) "
+        f"stands at {last_obs_value:.2f} (2019=100), with a month-over-month change "
+        f"of {mom_pct:+.2f}%."
+    )
 
-This repository maintains an automated data and forecasting pipeline for
-Statistics Canada Table 18-10-0255-01 (Commercial Rent Services Price Index).
+    if six_month_change_pct > 0.5:
+        trend_desc = f"upward trend of about {six_month_change_pct:.1f}% over the next 6 months"
+    elif six_month_change_pct < -0.5:
+        trend_desc = f"moderate decline of about {abs(six_month_change_pct):.1f}% over the next 6 months"
+    else:
+        trend_desc = "broadly flat trajectory over the next 6 months"
 
-The GitHub Actions workflow fetches the latest data, runs an AI forecasting
-model (Chronos-T5 Tiny), and publishes updated forecasts and a dashboard image.
+    sentence2 = (
+        f"The Chronos-T5 zero-shot forecast projects a {trend_desc}."
+    )
 
+    if six_month_change_pct > 1.0:
+        risk = "Accelerating trend detected; monitor for sustained rent pressure."
+    elif six_month_change_pct < -0.5:
+        risk = "Forecast suggests cooling momentum in commercial rents."
+    else:
+        risk = "Forecast indicates stabilizing rents with limited near-term volatility."
+
+    sentence3 = risk
+
+    return f"{sentence1} {sentence2} {sentence3}"
+
+
+def _readme_technical_methodology() -> str:
+    """Static Technical Methodology section for the README."""
+    return """
+---
+
+## Technical Methodology
+
+This pipeline uses **Amazon Chronos-T5 (Tiny)** as a **zero-shot foundation model** for time series forecasting. Chronos treats the series as a sequence of tokens and leverages a pretrained language-model-style architecture to generate probabilistic forecasts without task-specific training.
+
+Compared with traditional methods such as **ARIMA**, Chronos is better suited to **non-linear economic cycles** and regime shifts: it has been pretrained on large corpora of diverse time series, so it can capture complex patterns (e.g., post-COVID adjustments, supply shocks) that fixed-parameter ARIMA models often miss. The 6-month forecasts and 80% prediction intervals are produced in a single forward pass with no hyperparameter tuning on this series.
+
+- **Model**: `amazon/chronos-t5-tiny` (8M parameters)  
+- **Inference**: CPU, no gradient computation (`torch.no_grad()`).  
+- **Backtesting**: 3-month MAPE is computed by comparing out-of-sample forecasts to realized data to report model reliability.
 """
-    with path.open("w", encoding="utf-8") as f:
-        f.write(initial_content)
 
 
-def update_readme(
+def write_full_readme(
     readme_path: Path,
     last_obs_date: pd.Timestamp,
     last_obs_value: float,
     mom_growth: float,
     trend_tag: str,
     forecast_df: pd.DataFrame,
+    mape_pct: float,
+    executive_summary: str,
 ) -> None:
-    ensure_readme(readme_path)
+    """
+    Overwrite README.md with the full dashboard layout:
+    H1 title, dashboard image, Quick Stats, Market Intelligence, forecast table, methodology.
+    """
+    mom_pct = mom_growth * 100.0
+    six_month_fc = float(forecast_df["mean"].iloc[-1]) if len(forecast_df) else 0.0
+    mape_str = f"{mape_pct:.2f}%" if not np.isnan(mape_pct) else "N/A"
 
-    if readme_path.exists():
-        text = readme_path.read_text(encoding="utf-8")
-    else:
-        text = ""
-
-    if README_FORECAST_START not in text or README_FORECAST_END not in text:
-        if not text.endswith("\n"):
-            text += "\n"
-        text += f"\n{README_FORECAST_START}\n{README_FORECAST_END}\n"
-
-    start_idx = text.index(README_FORECAST_START) + len(README_FORECAST_START)
-    end_idx = text.index(README_FORECAST_END)
-
-    lines = []
-    lines.append("\n")
-    lines.append("## Latest CRSPI Macro Forecast\n\n")
-    lines.append(
-        f"- **Last Observation**: {last_obs_date.strftime('%Y-%m')} = "
-        f"{last_obs_value:.2f}\n"
-    )
-    lines.append(
-        f"- **MoM Change**: {mom_growth * 100.0:.2f}%\n"
-    )
-    lines.append(f"- **Trend Tag**: {trend_tag}\n\n")
-
-    lines.append("### 6-Month AI Forecast (Chronos-T5 Tiny)\n\n")
-    lines.append("| Month | Mean | P10 | P90 |\n")
-    lines.append("| --- | --- | --- | --- |\n")
+    lines = [
+        "# 📈 Real-Time Commercial Rent Intelligence\n\n",
+        "![CRSPI Forecast Dashboard](dashboard.png)\n\n",
+        "---\n\n",
+        "## Quick Stats\n\n",
+        "| Metric | Value |\n",
+        "| --- | --- |\n",
+        f"| **Current Index** (Canada, total building type) | {last_obs_value:.2f} (2019=100) |\n",
+        f"| **MoM Change** | {mom_pct:+.2f}% |\n",
+        f"| **6-Month Forecast** (mean) | {six_month_fc:.2f} |\n",
+        f"| **Model Accuracy (3-month MAPE)** | {mape_str} |\n\n",
+        "---\n\n",
+        "## Market Intelligence\n\n",
+        executive_summary + "\n\n",
+        "---\n\n",
+        "## 6-Month AI Forecast (Chronos-T5 Tiny)\n\n",
+        "| Month | Mean | P10 | P90 |\n",
+        "| --- | --- | --- | --- |\n",
+    ]
 
     for ts, row in forecast_df.iterrows():
         lines.append(
@@ -362,15 +461,13 @@ def update_readme(
             f"{row['p10']:.2f} | {row['p90']:.2f} |\n"
         )
 
+    lines.append(_readme_technical_methodology())
     lines.append("\n")
-    lines.append("![CRSPI Forecast Dashboard](dashboard.png)\n")
-    lines.append("\n")
+    lines.append("---\n\n")
+    lines.append("*Data: Statistics Canada Table 18-10-0255-01 (Commercial Rent Services Price Index). Updated automatically by GitHub Actions.*\n")
 
-    new_block = "".join(lines)
-    new_text = text[:start_idx] + new_block + text[end_idx:]
-
-    readme_path.write_text(new_text, encoding="utf-8")
-    logging.info("README.md updated with latest forecast summary.")
+    readme_path.write_text("".join(lines), encoding="utf-8")
+    logging.info("README.md overwritten with full dashboard content.")
 
 
 def main() -> None:
@@ -390,21 +487,34 @@ def main() -> None:
     macro_series = load_macro_series(WIDE_CSV_PATH)
     mom_growth, trend_tag = analyze_trend(macro_series)
 
-    forecast_df = run_chronos_forecast(macro_series)
+    pipeline = load_chronos_pipeline()
+    forecast_df = run_chronos_forecast(macro_series, pipeline=pipeline)
+    mape_pct = backtest_mape(macro_series, pipeline, num_months=BACKTEST_MONTHS)
 
     dashboard_path = ROOT_DIR / "dashboard.png"
-    build_dashboard(macro_series, forecast_df, dashboard_path)
+    build_dashboard(
+        macro_series,
+        forecast_df,
+        dashboard_path,
+        mape_pct=mape_pct,
+    )
 
     last_obs_date = macro_series.index[-1]
     last_obs_value = float(macro_series.iloc[-1])
+    executive_summary = generate_market_intelligence_summary(
+        last_obs_value, mom_growth, forecast_df, trend_tag
+    )
+
     readme_path = ROOT_DIR / "README.md"
-    update_readme(
+    write_full_readme(
         readme_path,
         last_obs_date=last_obs_date,
         last_obs_value=last_obs_value,
         mom_growth=mom_growth,
         trend_tag=trend_tag,
         forecast_df=forecast_df,
+        mape_pct=mape_pct,
+        executive_summary=executive_summary,
     )
 
     logging.info("Update, forecasting, and reporting completed successfully.")

@@ -41,6 +41,7 @@ jobs:
       - name: Run update script
         run: python update.py
 
+      # contents: write allows pushing README.md, dashboard.png, and data/ back to the repo (e.g. main)
       - name: Commit and push changes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -50,7 +51,7 @@ jobs:
 
           if [[ -n "$(git status --porcelain)" ]]; then
             git add -A
-            git commit -m "Refresh CRSPI data and AI forecasts [skip ci]"
+            git commit -m "Refresh CRSPI data, AI forecasts, and Real-Time Commercial Rent Intelligence [skip ci]"
             git push
           else
             echo "No changes to commit."
