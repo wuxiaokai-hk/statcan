@@ -1,0 +1,73 @@
+# Production-grade dual-cadence pipeline for CRSPI macro-intelligence.
+# - Data Engineering Cadence: monthly ingestion + validation (1st of every month).
+# - Analytical Cadence: quarterly Chronos-T5 forecasting (Jan, Apr, Jul, Oct).
+# Branch policy: run from default branch (main) for stable production; use ai-forecast for experimental tuning.
+name: Production Pipeline (Dual-Cadence)
+
+on:
+  schedule:
+    # 1st of every month, 03:00 UTC — aligns with StatCan release cycle
+    - cron: "0 3 1 * *"
+  workflow_dispatch:
+    inputs:
+      forecast_only:
+        description: "Run quarterly forecast only (use existing data)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        # Uses default branch (main) for scheduled runs; current branch for workflow_dispatch
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache dependencies and model weights
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/huggingface
+            ~/.cache/torch
+            ~/.cache/chronos
+          key: ${{ runner.os }}-statcan-prod-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-statcan-prod-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run production pipeline
+        run: |
+          if [ "${{ github.event.inputs.forecast_only }}" = "true" ]; then
+            python update.py --forecast-only
+          else
+            python update.py
+          fi
+
+      - name: Commit and push changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add -A
+            git commit -m "Production pipeline: CRSPI data and/or quarterly forecast [skip ci]"
+            git push
+          else
+            echo "No changes to commit."
+          fi
