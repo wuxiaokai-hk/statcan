@@ -171,8 +171,16 @@ def update_crspi_history(wide_csv: Path) -> pd.Series:
 def load_macro_series_from_history() -> pd.Series:
     """Load Canada total series from crspi_history.csv for forecasting."""
     if not CRSPI_HISTORY_CSV.exists():
+        print(f"⚠️ {CRSPI_HISTORY_CSV} not found. Running emergency ingestion...")
+        try:
+            # Replace 'run_monthly_ingestion()' with your actual ingestion function name
+            run_monthly_ingestion() 
+            print("✅ Ingestion successful. History file recovered.")
+        except Exception as e:
+            raise RuntimeError(f"CRITICAL: Failed to recover history file: {e}")
+    if not CRSPI_HISTORY_CSV.exists():
         raise FileNotFoundError(
-            "crspi_history.csv not found. Run monthly ingestion first."
+            "crspi_history.csv still missing. Ensure StatCan API is accessible."
         )
     df = pd.read_csv(CRSPI_HISTORY_CSV)
     df["date"] = pd.to_datetime(df["date"])
