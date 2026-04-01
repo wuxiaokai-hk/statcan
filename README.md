@@ -4,28 +4,56 @@
 
 | Metric | Value |
 | --- | --- |
-| **Last Ingestion Date** | — |
-| **Last Forecast Date** | — |
-| **Model Accuracy (3-month MAPE)** | — |
+| **Last Ingestion Date** | 2025-12-01 |
+| **Last Forecast Date** | 2026-04-01 |
+| **Model Accuracy (3-month MAPE)** | 0.25% |
 | **Data Source** | StatCan Table 18-10-0255-01 (Commercial Rent Services Price Index) |
 
-*(This table is updated automatically: **monthly** ingestion dates; **quarterly** forecast dates and MAPE in Jan, Apr, Jul, Oct.)*
+---
+
+![CRSPI Forecast Dashboard](analytics/dashboard.png)
 
 ---
 
-## Repository structure
+## Quick Stats
 
-| Path | Purpose |
+| Metric | Value |
 | --- | --- |
-| **data/** | Raw and processed CSVs (`crspi_history.csv`, wide table, zip). |
-| **models/** | Inference metadata and last-forecast state (Chronos-T5). |
-| **analytics/** | Dashboard image and performance metrics (MAPE/backtesting). |
-
-## Branch policy
-
-- **main** — Stable production. The production pipeline runs from this branch (monthly ingestion; quarterly AI forecast).
-- **ai-forecast** — Experimental model tuning and feature development.
+| **Current Index** (Canada, total building type) | 114.40 (2019=100) |
+| **MoM Change** | +0.26% |
+| **6-Month Forecast** (mean) | 115.85 |
+| **Model Accuracy (MAPE)** | 0.25% |
 
 ---
 
-*Updated automatically by GitHub Actions. See `.github/workflows/production_pipeline.yml` for the dual-cadence schedule.*
+## Market Intelligence
+
+The Commercial Rent Services Price Index (Canada, total building type) stands at 114.40 (2019=100), with a month-over-month change of +0.26%. The Chronos-T5 zero-shot forecast projects a upward trend of about 1.2% over the next 6 months. Accelerating trend detected; monitor for sustained rent pressure.
+
+---
+
+## 6-Month AI Forecast (Chronos-T5 Tiny)
+
+| Month | Mean | P10 | P90 |
+| --- | --- | --- | --- |
+| 2026-01 | 114.46 | 114.46 | 115.15 |
+| 2026-02 | 114.46 | 114.46 | 115.15 |
+| 2026-03 | 114.81 | 114.46 | 115.15 |
+| 2026-04 | 115.15 | 114.46 | 115.85 |
+| 2026-05 | 115.15 | 114.46 | 115.85 |
+| 2026-06 | 115.85 | 115.15 | 116.33 |
+
+---
+## Technical Methodology
+
+This pipeline uses **Amazon Chronos-T5 (Tiny)** as a **zero-shot foundation model** for time series forecasting. Chronos treats the series as a sequence of tokens and leverages a pretrained language-model-style architecture to generate probabilistic forecasts without task-specific training.
+
+Compared with traditional methods such as **ARIMA**, Chronos is better suited to **non-linear economic cycles** and regime shifts: it has been pretrained on large corpora of diverse time series, so it can capture complex patterns (e.g., post-COVID adjustments, supply shocks) that fixed-parameter ARIMA models often miss.
+
+- **Model**: `amazon/chronos-t5-tiny` (8M parameters)  
+- **Inference**: CPU, no gradient computation (`torch.no_grad()`).  
+- **Backtesting**: 3-month MAPE is computed by comparing out-of-sample forecasts to realized data.
+
+---
+
+*Updated automatically by GitHub Actions. **main** = stable production; **ai-forecast** = experimental model tuning.*
