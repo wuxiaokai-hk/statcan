@@ -21,14 +21,14 @@
 | --- | --- |
 | **Current Index** (Canada, total building type) | 114.40 (2019=100) |
 | **MoM Change** | +0.26% |
-| **6-Month Forecast** (mean) | 115.85 |
+| **6-Month Forecast** (mean) | 115.50 |
 | **Model Accuracy (MAPE)** | 0.25% |
 
 ---
 
 ## Market Intelligence
 
-The Commercial Rent Services Price Index (Canada, total building type) stands at 114.40 (2019=100), with a month-over-month change of +0.26%. The Chronos-T5 zero-shot forecast projects a upward trend of about 1.2% over the next 6 months. Accelerating trend detected; monitor for sustained rent pressure.
+The Commercial Rent Services Price Index (Canada, total building type) stands at 114.40 (2019=100), with a month-over-month change of +0.26%. The Chronos-T5 zero-shot forecast projects a upward trend of about 0.9% over the next 6 months. Forecast indicates stabilizing rents with limited near-term volatility.
 
 ---
 
@@ -38,10 +38,10 @@ The Commercial Rent Services Price Index (Canada, total building type) stands at
 | --- | --- | --- | --- |
 | 2026-01 | 114.46 | 114.46 | 115.15 |
 | 2026-02 | 114.46 | 114.46 | 115.15 |
-| 2026-03 | 114.81 | 114.46 | 115.15 |
+| 2026-03 | 114.46 | 114.46 | 115.15 |
 | 2026-04 | 115.15 | 114.46 | 115.85 |
 | 2026-05 | 115.15 | 114.46 | 115.85 |
-| 2026-06 | 115.85 | 115.15 | 116.33 |
+| 2026-06 | 115.50 | 115.15 | 115.85 |
 
 ---
 ## Technical Methodology
