@@ -1,5 +1,5 @@
 ﻿"Cube Title","Product Id","CANSIM Id",URL,"Cube Notes","Archive Status",Frequency,"Start Reference Period","End Reference Period","Total number of dimensions"
-"Commercial rents services price index, monthly","18100255",,"https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810025501",1;2;3,"CURRENT - a cube available to the public and that is current","Monthly","2006-01-01","2025-12-01","2",
+"Commercial rents services price index, monthly","18100255",,"https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810025501",1;2;3,"CURRENT - a cube available to the public and that is current","Monthly","2006-01-01","2026-03-01","2",
 
 "Dimension ID","Dimension name","Dimension Notes","Dimension Definitions"
 "1","Geography",,""
