@@ -4,9 +4,9 @@
 
 | Metric | Value |
 | --- | --- |
-| **Last Ingestion Date** | 2025-12-01 |
-| **Last Forecast Date** | 2026-04-01 |
-| **Model Accuracy (3-month MAPE)** | 0.25% |
+| **Last Ingestion Date** | 2026-03-01 |
+| **Last Forecast Date** | 2026-07-01 |
+| **Model Accuracy (3-month MAPE)** | 0.64% |
 | **Data Source** | StatCan Table 18-10-0255-01 (Commercial Rent Services Price Index) |
 
 ---
@@ -19,16 +19,16 @@
 
 | Metric | Value |
 | --- | --- |
-| **Current Index** (Canada, total building type) | 114.40 (2019=100) |
+| **Current Index** (Canada, total building type) | 115.40 (2019=100) |
 | **MoM Change** | +0.26% |
-| **6-Month Forecast** (mean) | 115.50 |
-| **Model Accuracy (MAPE)** | 0.25% |
+| **6-Month Forecast** (mean) | 116.85 |
+| **Model Accuracy (MAPE)** | 0.64% |
 
 ---
 
 ## Market Intelligence
 
-The Commercial Rent Services Price Index (Canada, total building type) stands at 114.40 (2019=100), with a month-over-month change of +0.26%. The Chronos-T5 zero-shot forecast projects a upward trend of about 0.9% over the next 6 months. Forecast indicates stabilizing rents with limited near-term volatility.
+The Commercial Rent Services Price Index (Canada, total building type) stands at 115.40 (2019=100), with a month-over-month change of +0.26%. The Chronos-T5 zero-shot forecast projects a upward trend of about 0.6% over the next 6 months. Forecast indicates stabilizing rents with limited near-term volatility.
 
 ---
 
@@ -36,12 +36,12 @@ The Commercial Rent Services Price Index (Canada, total building type) stands at
 
 | Month | Mean | P10 | P90 |
 | --- | --- | --- | --- |
-| 2026-01 | 114.46 | 114.46 | 115.15 |
-| 2026-02 | 114.46 | 114.46 | 115.15 |
-| 2026-03 | 114.46 | 114.46 | 115.15 |
-| 2026-04 | 115.15 | 114.46 | 115.85 |
-| 2026-05 | 115.15 | 114.46 | 115.85 |
-| 2026-06 | 115.50 | 115.15 | 115.85 |
+| 2026-04 | 116.16 | 115.46 | 116.16 |
+| 2026-05 | 116.16 | 115.46 | 116.85 |
+| 2026-06 | 116.16 | 115.46 | 116.85 |
+| 2026-07 | 116.16 | 116.16 | 116.85 |
+| 2026-08 | 116.85 | 116.16 | 117.55 |
+| 2026-09 | 116.85 | 116.16 | 117.55 |
 
 ---
 ## Technical Methodology
