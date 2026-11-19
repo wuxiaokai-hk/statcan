@@ -57,3 +57,7 @@ Compared with traditional methods such as **ARIMA**, Chronos is better suited to
 ---
 
 *Updated automatically by GitHub Actions. **main** = stable production; **ai-forecast** = experimental model tuning.*
+
+## License
+
+MIT, see [LICENSE](LICENSE). Free to use, change and share. Data downloaded from public sources stay under their providers' terms. Independent open-source project, not affiliated with or endorsed by any employer, regulator or data vendor.
